@@ -1,9 +1,15 @@
 package im.bigs.pg.application.payment.service
 
 import im.bigs.pg.application.payment.port.`in`.*
+import im.bigs.pg.application.payment.port.out.PaymentOutPort
+import im.bigs.pg.application.payment.port.out.PaymentQuery
+import im.bigs.pg.application.payment.port.out.PaymentSummaryFilter
+import im.bigs.pg.domain.payment.PaymentStatus
 import im.bigs.pg.domain.payment.PaymentSummary
 import org.springframework.stereotype.Service
 import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneOffset
 import java.util.Base64
 
 /**
@@ -12,7 +18,9 @@ import java.util.Base64
  * - 통계는 조회 조건과 동일한 집합을 대상으로 계산됩니다.
  */
 @Service
-class QueryPaymentsService : QueryPaymentsUseCase {
+class QueryPaymentsService(
+    private val paymentOutPort: PaymentOutPort,
+) : QueryPaymentsUseCase {
     /**
      * 필터를 기반으로 결제 내역을 조회합니다.
      *
@@ -23,11 +31,47 @@ class QueryPaymentsService : QueryPaymentsUseCase {
      * @return 조회 결과(목록/통계/커서)
      */
     override fun query(filter: QueryFilter): QueryResult {
+        val (cursorCreatedAtInstant, cursorId) = decodeCursor(filter.cursor)
+
+        val statusEnum = filter.status?.let {
+            runCatching { PaymentStatus.valueOf(it) }.getOrNull()
+        }
+
+        val query = PaymentQuery(
+            partnerId = filter.partnerId,
+            status = statusEnum,
+            from = filter.from,
+            to = filter.to,
+            limit = filter.limit,
+            cursorCreatedAt = cursorCreatedAtInstant?.let { LocalDateTime.ofInstant(it, ZoneOffset.UTC) },
+            cursorId = cursorId,
+        )
+
+        val page = paymentOutPort.findBy(query)
+
+        val summary = paymentOutPort.summary(
+            PaymentSummaryFilter(
+                partnerId = filter.partnerId,
+                status = statusEnum,
+                from = filter.from,
+                to = filter.to,
+            ),
+        )
+
+        val nextCursor = encodeCursor(
+            page.nextCursorCreatedAt?.toInstant(ZoneOffset.UTC),
+            page.nextCursorId,
+        )
+
         return QueryResult(
-            items = emptyList(),
-            summary = PaymentSummary(count = 0, totalAmount = java.math.BigDecimal.ZERO, totalNetAmount = java.math.BigDecimal.ZERO),
-            nextCursor = null,
-            hasNext = false,
+            items = page.items,
+            summary = im.bigs.pg.domain.payment.PaymentSummary(
+                count = summary.count,
+                totalAmount = summary.totalAmount,
+                totalNetAmount = summary.totalNetAmount,
+            ),
+            nextCursor = nextCursor,
+            hasNext = page.hasNext,
         )
     }
 
