@@ -52,4 +52,21 @@ class 결제서비스Test {
         assertEquals(BigDecimal("9600"), res.netAmount)
         assertEquals(PaymentStatus.APPROVED, res.status)
     }
+
+    @Test
+    @DisplayName("수수료 정책이 없으면 예외가 발생해야 한다")
+    fun `수수료 정책이 없으면 예외가 발생해야 한다`() {
+        val service = PaymentService(partnerRepo, feeRepo, paymentRepo, listOf(pgClient))
+        every { partnerRepo.findById(1L) } returns Partner(1L, "TEST", "Test", true)
+        every { feeRepo.findEffectivePolicy(1L, any()) } returns null
+
+        val cmd = PaymentCommand(partnerId = 1L, amount = BigDecimal("10000"), cardLast4 = "4242")
+        
+        try {
+            service.pay(cmd)
+            kotlin.test.fail("예외가 발생해야 함")
+        } catch (e: IllegalStateException) {
+            assertEquals("No fee policy for partner 1", e.message)
+        }
+    }
 }
