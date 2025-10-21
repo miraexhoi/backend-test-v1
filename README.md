@@ -140,4 +140,68 @@ GET /api/v1/payments?partnerId=1&status=APPROVED&from=2025-01-01T00:00:00Z&to=20
 - 본 과제와 관련한 어떠한 질문도 받지 않습니다.
 - 제출물을 기준으로 면접시 코드리뷰를 진행합니다. 이를 고려해주세요. 
 
+## 13. 사용가이드
+
+### API 테스트 방법
+
+#### 1. 서버 실행
+```bash
+./gradlew :modules:bootstrap:api-payment-gateway:bootRun
+```
+
+#### 2. 결제 생성 테스트
+**POST** `http://localhost:8080/api/v1/payments`
+```json
+{
+  "partnerId": 1,
+  "amount": 10000,
+  "cardBin": "123456",
+  "cardLast4": "4242",
+  "productName": "샘플 상품"
+}
+```
+
+#### 3. 결제 조회 테스트
+**GET** `http://localhost:8080/api/v1/payments?partnerId=1&status=APPROVED&limit=20`
+
+### 시드 데이터
+- Partner 1: MockPG (홀수 ID) - 2.35% 수수료
+- Partner 2: TestPG (짝수 ID) - 3% + 100원 수수료
+
+### 예상 응답 예시
+
+#### MockPG 결제 (Partner 1)
+```json
+{
+  "id": 1,
+  "partnerId": 1,
+  "amount": 10000,
+  "appliedFeeRate": 0.023500,
+  "feeAmount": 235,
+  "netAmount": 9765,
+  "cardLast4": "4242",
+  "approvalCode": "10211660",
+  "approvedAt": "2025-10-21 08:11:31",
+  "status": "APPROVED",
+  "createdAt": "2025-10-21 17:11:31"
+}
+```
+
+#### TestPG 결제 (Partner 2)
+```json
+{
+  "id": 2,
+  "partnerId": 2,
+  "amount": 10000,
+  "appliedFeeRate": 0.030000,
+  "feeAmount": 400,
+  "netAmount": 9600,
+  "cardLast4": "1111",
+  "approvalCode": "10217890",
+  "approvedAt": "2025-10-21 08:12:00",
+  "status": "APPROVED",
+  "createdAt": "2025-10-21 17:12:00"
+}
+```
+
 행운을 빕니다. 읽기 쉬운 코드, 일관된 설계, 신뢰할 수 있는 테스트를 기대합니다.
